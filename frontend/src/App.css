@@ -1,0 +1,371 @@
+/* Reset basic spacing */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  color: #1e293b;
+  background-color: #f8fafc;
+}
+
+/* 1. Main Layout */
+.dashboard-container {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f8fafc;
+}
+
+/* 2. Sleek Sidebar Styling */
+.sidebar {
+  width: 260px;
+  background-color: #0f172a;
+  color: white;
+  padding: 30px 20px;
+  box-shadow: 4px 0 10px rgba(0,0,0,0.05);
+}
+
+.sidebar h2 {
+  margin-bottom: 40px;
+  font-size: 24px;
+  color: #38bdf8;
+  letter-spacing: 1px;
+}
+
+.sidebar ul {
+  list-style: none;
+}
+
+.sidebar li {
+  margin-bottom: 15px;
+  padding: 12px 15px;
+  font-size: 16px;
+  cursor: pointer;
+  color: #cbd5e1;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.sidebar li:hover {
+  background-color: #1e293b;
+  color: white;
+  transform: translateX(5px);
+}
+
+/* 3. Main Content Area */
+.main-content {
+  flex: 1;
+  padding: 40px 50px;
+  overflow-y: auto; /* Allows scrolling if the form gets too tall */
+}
+
+/* 4. Welcome Header Styling */
+.top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.top-header h1 {
+  color: #0f172a;
+  font-size: 28px;
+}
+
+.profile-circle {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background-color: #3b82f6;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: bold;
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+}
+
+/* 5. Dashboard Cards */
+.cards-container {
+  display: flex;
+  gap: 25px;
+}
+
+.card {
+  background-color: white;
+  padding: 30px 25px;
+  border-radius: 12px;
+  flex: 1;
+  font-weight: 600;
+  font-size: 18px;
+  color: #334155;
+  border-top: 4px solid #3b82f6;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* 6. Leave Form Styling */
+.leave-form-container {
+  background-color: white;
+  padding: 35px 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  max-width: 700px;
+  border-top: 4px solid #38bdf8;
+}
+
+.leave-form-container h2 {
+  color: #0f172a;
+  margin-bottom: 5px;
+}
+
+.form-subtitle {
+  color: #64748b;
+  margin-bottom: 25px;
+  font-size: 15px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-row {
+  display: flex;
+  gap: 20px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #334155;
+  font-size: 14px;
+}
+
+.form-group input, 
+.form-group select, 
+.form-group textarea {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 15px;
+  color: #1e293b;
+  transition: border-color 0.3s ease;
+  background-color: #f8fafc;
+}
+
+.form-group input:focus, 
+.form-group select:focus, 
+.form-group textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background-color: white;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.submit-btn {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.submit-btn:hover {
+  background-color: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+}
+/* 8. Attendance Page Styling */
+.attendance-container {
+  background-color: white;
+  padding: 35px 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #10b981; /* Emerald green accent for attendance */
+}
+
+.check-in-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.check-in-header h2 {
+  color: #0f172a;
+  margin-bottom: 5px;
+}
+
+/* The Big Check-In Button */
+.check-in-btn {
+  background-color: #10b981; 
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 50px; /* Makes it a pill shape */
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+  transition: all 0.3s ease;
+}
+
+.check-in-btn:hover {
+  background-color: #059669;
+  transform: translateY(-2px) scale(1.02); /* Slight pulse effect */
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+}
+
+/* Attendance Table Styling */
+.table-container {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.attendance-table th {
+  background-color: #f8fafc;
+  color: #475569;
+  padding: 15px 20px;
+  font-weight: 600;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.attendance-table td {
+  padding: 15px 20px;
+  color: #1e293b;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 15px;
+}
+
+.time-cell {
+  font-family: monospace; /* Gives the time a cool digital look */
+  font-size: 16px;
+  color: #3b82f6;
+  font-weight: bold;
+}
+
+/* On Time vs Late Badges */
+.status-badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.status-badge.on-time {
+  background-color: #dcfce7; /* Light green */
+  color: #166534; /* Dark green text */
+}
+
+.status-badge.late {
+  background-color: #fee2e2; /* Light red */
+  color: #991b1b; /* Dark red text */
+}
+/* 9. Payslips Page Styling */
+.payslips-container {
+  background-color: white;
+  padding: 35px 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #8b5cf6; /* Purple accent for finance */
+}
+
+.payslip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 25px;
+  margin-top: 20px;
+}
+
+.payslip-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px;
+  background-color: #f8fafc;
+  transition: all 0.3s ease;
+}
+
+.payslip-card:hover {
+  border-color: #8b5cf6;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+  transform: translateY(-3px);
+}
+
+.payslip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.payslip-header h3 {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.payslip-details p {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #475569;
+  font-size: 15px;
+}
+
+.payslip-details hr {
+  border: none;
+  border-top: 1px dashed #cbd5e1;
+  margin: 12px 0;
+}
+
+.net-pay {
+  font-size: 18px !important;
+  color: #0f172a !important;
+}
+
+.download-btn {
+  width: 100%;
+  margin-top: 20px;
+  background-color: white;
+  color: #8b5cf6;
+  border: 2px solid #8b5cf6;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.download-btn:hover {
+  background-color: #8b5cf6;
+  color: white;
+}
