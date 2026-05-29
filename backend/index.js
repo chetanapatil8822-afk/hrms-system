@@ -62,6 +62,8 @@ const attendanceRoutes = require('./routes/attendance');
 const superAdminRoutes = require('./routes/superadmin');
 const reportRoutes = require("./routes/reportRoutes"); 
 const integrationRoutes = require("./routes/integrationRoutes");
+const dataRoutes = require('./routes/dataManagementRoutes');
+const hrOversightRoutes = require('./routes/hrOversightRoutes');
 
 // ==========================================
 // 🚀 ENDPOINT GATEWAY ROUTING ATTACHMENTS
@@ -77,6 +79,9 @@ app.use('/api/superadmin', superAdminRoutes);
 app.use("/api/super-admin/team", superAdminTeamRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/integrations", integrationRoutes);
+app.use('/api/data-management', dataRoutes);
+app.use('/api/hr-oversight', hrOversightRoutes);
+
 // ==========================================
 // 🛑 ERROR HANDLING GATES & SYSTEM SHIELDS
 // ==========================================
