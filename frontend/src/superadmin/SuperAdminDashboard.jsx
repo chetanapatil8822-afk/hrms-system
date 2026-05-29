@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer,
-    PieChart, Pie, Cell 
+    AreaChart, Area 
 } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -56,6 +56,17 @@ const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedCompanyId, setSelectedCompanyId] = useState(null);
     const [logoFile, setLogoFile] = useState(null); 
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [sourcePlatform, setSourcePlatform] = useState('standard');
+    const [isImporting, setIsImporting] = useState(false);
+    const [importStatus, setImportStatus] = useState({ success: null, message: "" });
+    const [retentionDays, setRetentionDays] = useState(30);
+    const [purgeLoading, setPurgeLoading] = useState(false);
+    const [policyMessage, setPolicyMessage] = useState("");
+    const [hrOversightData, setHrOversightData] = useState([]);
+    const [hrSummary, setHrSummary] = useState({ totalPlatformPayroll: 0, totalPlatformCandidates: 0, flaggedCompaniesCount: 0 });
+    const [isHrLoading, setIsHrLoading] = useState(false);
+    const [chartTrendsData, setChartTrendsData] = useState([]);
 
     const [formData, setFormData] = useState({
         companyName: '', adminEmail: '', phone: '', alternatePhone: '',
@@ -75,8 +86,74 @@ const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
         else if (activeTab === 'support') fetchTickets();
         else if (activeTab === 'settings') fetchSettings();
         else if (activeTab === 'team') fetchTeamMembers();
+   
     }, [activeTab]);
 
+    const [storageMetrics, setStorageMetrics] = useState([]);
+
+useEffect(() => {
+    if (activeTab === 'data-management') {
+        fetch('http://localhost:5001/api/data-management/storage-usage')
+            .then(res => res.json())
+            .then(resData => {
+                if(resData.success) setStorageMetrics(resData.data);
+            })
+            .catch(err => console.log("Storage load error:", err));
+    }
+}, [activeTab]);
+
+useEffect(() => {
+    if (activeTab === 'data-management') {
+        // Fetch retention config
+        fetch('http://localhost:5001/api/data-management/retention-policy')
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) setRetentionDays(data.retentionDays);
+            })
+            .catch(err => console.log("Retention fetch fault:", err));
+    }
+}, [activeTab]);
+
+useEffect(() => {
+    if (activeTab === 'hr-oversight') {
+        setIsHrLoading(true);
+        fetch('http://localhost:5001/api/hr-oversight/global-summary')
+            .then(res => res.json())
+            .then(resData => {
+                // Sahi mapping bina resData.success dynamic conditional wrapping ke:
+                if (resData && resData.data) {
+                    setHrOversightData(resData.data);
+                    setHrSummary(resData.summary);
+                } else if (Array.isArray(resData)) {
+                    // Fallback boundary array parse safety handler
+                    setHrOversightData(resData);
+                }
+            })
+            .catch(err => console.error("HR Oversight payload map error:", err))
+            .finally(() => setIsHrLoading(false));
+    }
+}, [activeTab]);
+
+const fallbackChartsData = [
+    { month: 'Jan', totalSalaryDisbursed: 1850000, activeHires: 12 },
+    { month: 'Feb', totalSalaryDisbursed: 2100000, activeHires: 18 },
+    { month: 'Mar', totalSalaryDisbursed: 1950000, activeHires: 15 },
+    { month: 'Apr', totalSalaryDisbursed: 2400000, activeHires: 24 },
+    { month: 'May', totalSalaryDisbursed: 2850000, activeHires: 32 },
+    { month: 'Jun', totalSalaryDisbursed: 3100000, activeHires: 28 }
+];
+
+useEffect(() => {
+    if (activeTab === 'hr-oversight') {
+        // Purana global-summary fetch chalne dein, uske sath ye bhi fetch call laga dein:
+        fetch('http://localhost:5001/api/hr-oversight/monthly-trends')
+            .then(res => res.json())
+            .then(resData => {
+                if (resData.success) setChartTrendsData(resData.trends);
+            })
+            .catch(err => console.error("Charts data loading error:", err));
+    }
+}, [activeTab]);
 
     // ==========================================
     // 📡 API FETCHERS
@@ -349,6 +426,73 @@ const downloadCSVReport = () => {
         } catch (e) { alert("Channel update failed"); }
     };
 
+    const handleBulkImport = async (e) => {
+    e.preventDefault();
+    if (!selectedFile) {
+        alert("Please select an Excel or CSV file first!");
+        return;
+    }
+
+    setIsImporting(true);
+    setImportStatus({ success: null, message: "" });
+
+    // Multipart form data append karein backend requirement ke mutabik
+    const formData = new FormData();
+    formData.append('datasheet', selectedFile);
+    formData.append('sourcePlatform', sourcePlatform);
+
+    try {
+        const response = await fetch('http://localhost:5001/api/data-management/bulk-import', {
+            method: 'POST',
+            body: formData, // Headers automatic set ho jayenge boundary ke sath
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            setImportStatus({ success: true, message: data.message });
+            setSelectedFile(null); // File clear kar dein
+            
+            // Refresh storage indicators if you want
+            if (typeof fetchStorageMetrics === 'function') fetchStorageMetrics();
+        } else {
+            setImportStatus({ success: false, message: data.message || "Import failed." });
+        }
+    } catch (error) {
+        console.error("Import client side fault:", error);
+        setImportStatus({ success: false, message: "Server connection timed out or network error." });
+    } finally {
+        setIsImporting(false);
+    }
+};
+
+const handleUpdatePolicy = async (e) => {
+    e.preventDefault();
+    try {
+        const response = await fetch('http://localhost:5001/api/data-management/retention-policy/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ retentionDays })
+        });
+        const data = await response.json();
+        if(data.success) {
+            setPolicyMessage(`✅ Policy Saved: Maximum log bounds set to ${retentionDays} days.`);
+            setTimeout(() => setPolicyMessage(""), 4000);
+        }
+    } catch (err) { alert("Failed to deploy policy bounds matrix."); }
+};
+
+const handleImmediatePurge = async () => {
+    if(!confirm("⚠️ WARNING: This will permanently scrub and wipe hard-deleted data from database blocks. Continue?")) return;
+    setPurgeLoading(true);
+    try {
+        const response = await fetch('http://localhost:5001/api/data-management/purge-now', { method: 'POST' });
+        const data = await response.json();
+        if(data.success) alert(data.message);
+    } catch (err) { alert("Purge script interrupted."); }
+    finally { setPurgeLoading(false); }
+};
+
     // ==========================================
     // ⚡ ACTION HANDLERS
     // ==========================================
@@ -600,6 +744,28 @@ const handleDeleteTeamMember = async () => {
     className={`px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all ${activeTab === 'integrations' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
 >
     🔌 API & Integrations
+</button>
+
+                  <button
+    onClick={() => setActiveTab('data-management')}
+    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+        activeTab === 'data-management'
+            ? 'bg-indigo-600 text-white shadow-sm'
+            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+    }`}
+>
+    💾 Data Management
+</button>
+
+                  <button
+    onClick={() => setActiveTab('hr-oversight')}
+    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+        activeTab === 'hr-oversight'
+            ? 'bg-indigo-600 text-white shadow-sm'
+            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+    }`}
+>
+    👁️ HR Module Oversight
 </button>
 
             </div>
@@ -1296,6 +1462,199 @@ const handleDeleteTeamMember = async () => {
     </div>
 )}
 
+{/* TAB: 💾 DATA MANAGEMENT & AUDIT */}
+{activeTab === 'data-management' && (
+    <div className="animate-fadeIn space-y-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-black text-gray-900 mb-2">Enterprise Ledger & Data Lifecycle Management</h2>
+            <p className="text-xs text-gray-400 mb-6">Perform master data operations, trigger secure offsite exports, and maintain archival records compliance.</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Export Card */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-white flex flex-col justify-between space-y-4">
+                    <div className="space-y-1">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 text-lg">📊</div>
+                        <h3 className="text-sm font-black text-gray-900 pt-2">Global Master Data Export</h3>
+                        <p className="text-[11px] text-gray-400">Download a compiled system ledger of all corporate clients, onboarding timestamps, operational states, and master records into a standard spreadsheet document format.</p>
+                    </div>
+                    
+                    <div>
+                        <a 
+                            href="http://localhost:5001/api/data-management/export-companies" 
+                            download
+                            className="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-sm transition-all text-center w-full md:w-auto"
+                        >
+                            📥 Download Excel Matrix Ledger
+                        </a>
+                    </div>
+                </div>
+
+                {/* Storage Monitoring Functional Card */}
+<div className="p-5 rounded-2xl border border-gray-200 bg-white flex flex-col justify-between space-y-4">
+    <div className="space-y-1">
+        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 text-lg">💾</div>
+        <h3 className="text-sm font-black text-gray-900 pt-2">Storage Pipeline Allocation</h3>
+        <p className="text-[11px] text-gray-400 mb-4">Track structural disk spaces, document buckets utilization matrix, corporate attachments volume per active tenant.</p>
+    </div>
+    
+    {/* Live Progress Metrics List */}
+    <div className="space-y-4 max-h-[200px] overflow-y-auto pr-1">
+        {storageMetrics.map((metric, idx) => (
+            <div key={idx} className="space-y-1">
+                <div className="flex justify-between text-[11px] font-bold text-gray-600">
+                    <span>{metric.companyName}</span>
+                    <span className="text-gray-400">{metric.storageUsed}MB / {metric.storageLimit}MB ({metric.percentage}%)</span>
+                </div>
+                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                    <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                            metric.percentage > 80 ? 'bg-rose-500' : metric.percentage > 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${metric.percentage}%` }}
+                    ></div>
+                </div>
+            </div>
+        ))}
+    </div>
+</div>
+
+{/* 📥 COMBO MODULE: BULK DATA IMPORT & CROSS-PLATFORM MIGRATION */}
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mt-6">
+    <div className="mb-6">
+        <h3 className="text-lg font-black text-gray-900 mb-1">📥 Bulk Ingestion & Legacy Migration Gateway</h3>
+        <p className="text-xs text-gray-400">Migrate master ledgers natively or translate schema payloads directly from secondary third-party HR providers.</p>
+    </div>
+
+    <form onSubmit={handleBulkImport} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+            
+            {/* Left Box: Engine Selection */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-gray-200/60 space-y-3">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Select Source Engine Mapping</label>
+                <select 
+                    value={sourcePlatform}
+                    onChange={(e) => setSourcePlatform(e.target.value)}
+                    className="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white focus:outline-none focus:border-indigo-500"
+                >
+                    <option value="standard">📦 HRMS Native Standard Schema (.xlsx/.csv)</option>
+                    <option value="bamboohr">🌿 BambooHR Legacy Export Matrix</option>
+                    <option value="darwinbox">🦊 Darwinbox Cloud Schema Payload</option>
+                </select>
+                <p className="text-[10px] text-gray-400 leading-relaxed">
+                    Selecting a cross-platform parser forces the engine to automatically match and reorganize data columns without disturbing records structures.
+                </p>
+            </div>
+
+            {/* Right Box: Dropzone File Input */}
+            <div className="md:col-span-2 border-2 border-dashed border-gray-200 hover:border-indigo-500 rounded-xl p-6 transition-all bg-white relative flex flex-col items-center justify-center text-center">
+                <input 
+                    type="file" 
+                    accept=".csv, .xlsx, .xls"
+                    onChange={(e) => setSelectedFile(e.target.files[0])}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                
+                <div className="space-y-2">
+                    <div className="text-2xl">📁</div>
+                    <div className="text-xs font-bold text-slate-700">
+                        {selectedFile ? `Selected: ${selectedFile.name}` : "Drag and drop your spreadsheet matrix, or browse files"}
+                    </div>
+                    <p className="text-[10px] text-gray-400">Supports CSV, XLSX up to 15MB chunks configuration limits.</p>
+                </div>
+            </div>
+
+        </div>
+
+        {/* System Import Feedback Status Alerts */}
+        {importStatus.message && (
+            <div className={`p-3 rounded-xl text-xs font-bold border ${
+                importStatus.success ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'
+            }`}>
+                {importStatus.success ? "✅ Success: " : "❌ Engine Fault: "} {importStatus.message}
+            </div>
+        )}
+
+        {/* Execution Trigger button */}
+        <div className="flex justify-end pt-2 border-t border-gray-50">
+            <button 
+                type="submit"
+                disabled={isImporting}
+                className={`bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-sm transition-all ${
+                    isImporting ? 'opacity-50 cursor-not-allowed animate-pulse' : ''
+                }`}
+            >
+                {isImporting ? "Processing Data Streams..." : "🚀 Execute Ingestion Pipeline"}
+            </button>
+        </div>
+    </form>
+</div>
+
+{/* 💣 MODULE: RETENTION ENGINE & DATA PURGE MATRIX */}
+<div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+    
+    {/* Left Part: Retention Policy Configuration (2 Columns Wide) */}
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 md:col-span-2">
+        <h3 className="text-sm font-black text-gray-900 mb-1">⚙️ Compliance & Data Retention Policies</h3>
+        <p className="text-[11px] text-gray-400 mb-4">Set time-decay bounds for soft-deleted transactional entities and operational tenant cache blocks before final hard scrub overrides.</p>
+        
+        <form onSubmit={handleUpdatePolicy} className="flex gap-4 items-end">
+            <div className="flex-1 space-y-1">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Garbage Collection Age Threshold</label>
+                <select 
+                    value={retentionDays}
+                    onChange={(e) => setRetentionDays(e.target.value)}
+                    className="w-full border border-gray-200 p-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white focus:outline-none focus:border-indigo-500"
+                >
+                    <option value="15">📅 15 Days Dynamic Hold Cycle</option>
+                    <option value="30">📅 30 Days Standard Archival Window</option>
+                    <option value="90">📅 90 Days Enterprise Compliance Bounds</option>
+                    <option value="365">📅 365 Days Extended Regulatory Storage</option>
+                </select>
+            </div>
+            <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold h-[38px] px-5 rounded-xl text-xs transition-all shadow-sm whitespace-nowrap">
+                Lock Retention Bound
+                </button>
+        </form>
+
+        {policyMessage && (
+            <div className="mt-3 text-[11px] text-indigo-600 font-bold tracking-wide animate-pulse">
+                {policyMessage}
+            </div>
+        )}
+    </div>
+
+    {/* Right Part: Immediate Destruction Console (1 Column Wide) */}
+    <div className="bg-rose-50/40 p-6 rounded-2xl border border-rose-100 flex flex-col justify-between">
+        <div className="space-y-1">
+            <span className="text-[9px] font-black tracking-widest text-rose-500 uppercase bg-rose-100/60 px-2 py-0.5 rounded-md inline-block mb-1">Destructive Action Node</span>
+            <h3 className="text-sm font-black text-rose-950">Immediate Data Purge Vault</h3>
+            <p className="text-[10px] text-rose-700/80 leading-relaxed">Bypass automated retention calendars to instantly hard-scrub detached system artifacts, dropped records nodes, and purge isolated asset directories immediately.</p>
+        </div>
+
+        <button 
+            type="button"
+            onClick={handleImmediatePurge}
+            disabled={purgeLoading}
+            className={`w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-md transition-all text-center mt-4 uppercase tracking-wider ${
+                purgeLoading ? 'opacity-40 animate-pulse cursor-wait' : ''
+            }`}
+        >
+            {purgeLoading ? "Scrubbing Sectors..." : "⚠️ Force Core Database Purge"}
+        </button>
+    </div>
+
+</div>
+
+
+
+            </div>
+        </div>
+    </div>
+)}
+
+               
+
             {/* 📋 MEGA MODAL FOR ADD / EDIT */}
             {isModalOpen && (
 
@@ -1360,6 +1719,188 @@ const handleDeleteTeamMember = async () => {
                     </div>
                 </div>
             )}
+
+            {/* TAB: 👁️ GLOBAL HR MODULE OVERSIGHT */}
+{activeTab === 'hr-oversight' && (
+    <div className="animate-fadeIn space-y-6">
+        
+        {/* Top Header Summary Indicators */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
+                <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Total Cross-Platform Payroll Volume</span>
+                    <h2 className="text-xl font-black text-slate-800">₹{hrSummary.totalPlatformPayroll.toLocaleString('en-IN')} <span className="text-xs font-semibold text-gray-400">/mo</span></h2>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 text-lg">💰</div>
+            </div>
+            
+            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center">
+                <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Active Recruitment Pipeline</span>
+                    <h2 className="text-xl font-black text-emerald-600">{hrSummary.totalPlatformCandidates} <span className="text-xs font-semibold text-emerald-400">Candidates</span></h2>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 text-lg">🚀</div>
+            </div>
+
+            <div className="bg-rose-50/60 p-5 rounded-2xl border border-rose-100 shadow-sm flex justify-between items-center">
+                <div>
+                    <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block mb-1">Risk Action Alerts Pending</span>
+                    <h2 className="text-xl font-black text-rose-700">{hrSummary.flaggedCompaniesCount} <span className="text-xs font-semibold text-rose-400">Tenants Flagged</span></h2>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 text-lg">⚠️</div>
+            </div>
+        </div>
+
+        {/* 📊 LEVEL 2: ADVANCED TREND ANALYTICS CHARTS GRID */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    
+    {/* Chart A: Salary Disbursement Volume Matrix */}
+    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="mb-4">
+            <span className="text-[9px] font-black tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase">Financial Vector</span>
+            <h3 className="text-sm font-black text-slate-800 mt-1">Platform-wide Salary Disbursement Trends</h3>
+            <p className="text-[10px] text-gray-400">Track total aggregated cash flow volumes disbursed dynamically across all onboarding tenants.</p>
+        </div>
+        <div className="h-[220px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartTrendsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                        <linearGradient id="colorSalary" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2}/>
+                            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} />
+                    {/* 💡 Tooltip ko ChartTooltip kiya */}
+                    <ChartTooltip formatter={(value) => [`₹${value.toLocaleString('en-IN')}`, 'Disbursed']} />
+                    <Area type="monotone" dataKey="totalSalaryDisbursed" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorSalary)" />
+                </AreaChart>
+            </ResponsiveContainer>
+        </div>
+    </div>
+
+    {/* Chart B: Monthly Onboarding & Hiring Velocity */}
+    <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="mb-4">
+            <span className="text-[9px] font-black tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase">Talent Pool Inflow</span>
+            <h3 className="text-sm font-black text-slate-800 mt-1">Monthly Recruitment & Hiring Velocity</h3>
+            <p className="text-[10px] text-gray-400">Monitor active talent acquisition pipelines metrics and collective onboarding growth curves.</p>
+        </div>
+        <div className="h-[220px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartTrendsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" stroke="#94a3b8" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} />
+                    {/* 💡 Tooltip ko ChartTooltip kiya */}
+                    <ChartTooltip formatter={(value) => [value, 'Active Hires']} />
+                    <Bar dataKey="activeHires" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    </div>
+
+</div>
+
+        {/* Main Oversight Data Grid Card */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="mb-6">
+                <h2 className="text-lg font-black text-gray-900 mb-1">Global Tenants Multi-Module Audit Console</h2>
+                <p className="text-xs text-gray-400">Real-time health analytics, processing states, leave tracking matrices, and feature usage vectors across corporate entities.</p>
+            </div>
+
+            {isHrLoading ? (
+                <div className="text-center py-12 text-gray-400 font-bold tracking-widest animate-pulse">AGGREGATING CROSS-COMPANY TELEMETRY...</div>
+            ) : (
+                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-900 text-white font-bold text-[10px] uppercase tracking-wider">
+                                <th className="p-3.5">Company Identity</th>
+                                <th className="p-3.5">Attendance Health</th>
+                                <th className="p-3.5">Leave Patterns</th>
+                                <th className="p-3.5">Payroll System</th>
+                                <th className="p-3.5">Performance (KPI)</th>
+                                <th className="p-3.5">Recruitment Pipeline</th>
+                                <th className="p-3.5">Training Logs</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-xs">
+                            {hrOversightData.map((row, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50/80 transition-all">
+                                    {/* Company Name */}
+                                    <td className="p-3.5 font-bold text-slate-900">{row.companyName}</td>
+                                    
+                                    {/* Attendance Status */}
+                                    <td className="p-3.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className={`w-2 h-2 rounded-full ${row.attendance.flagLow ? 'bg-rose-500 animate-ping' : 'bg-emerald-500'}`}></span>
+                                            <span className="font-semibold">{row.attendance.rate}%</span>
+                                        </div>
+                                        {row.attendance.flagLow && <span className="text-[9px] font-bold text-rose-500 block">⚠️ Critical Low Rate</span>}
+                                    </td>
+
+                                    {/* Leave Analytics */}
+                                    <td className="p-3.5">
+                                        <div className="font-semibold text-slate-700">{row.leaves.commonType}</div>
+                                        <div className="text-[9px] text-gray-400 font-mono">{row.leaves.abusePattern}</div>
+                                    </td>
+
+                                    {/* Payroll Operations */}
+                                    <td className="p-3.5">
+                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider block w-max ${
+                                            row.payroll.status === 'Processed' || row.payroll.status === 'Disbursed' 
+                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                                : 'bg-amber-50 text-amber-700 border border-amber-100 animate-pulse'
+                                        }`}>
+                                            {row.payroll.status}
+                                        </span>
+                                        <span className="text-[10px] text-gray-500 block mt-1 font-mono">₹{row.payroll.volume.toLocaleString('en-IN')}</span>
+                                    </td>
+
+                                    {/* Performance Appraisals */}
+                                    <td className="p-3.5">
+                                        {row.performance.isUsing ? (
+                                            <div className="space-y-0.5">
+                                                <div className="font-semibold text-slate-700">{row.performance.appraisalCycle}</div>
+                                                <div className="w-24 bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                                                    <div className="bg-indigo-600 h-full" style={{ width: `${row.performance.kpiCompletion}%` }}></div>
+                                                </div>
+                                                <span className="text-[9px] text-gray-400 font-bold block">{row.performance.kpiCompletion}% KPIs Complete</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 bg-slate-100 text-slate-400 rounded border border-slate-200 block w-max">
+                                                🚫 Module Offline
+                                            </span>
+                                        )}
+                                    </td>
+
+                                    {/* Recruitment Statistics */}
+                                    <td className="p-3.5">
+                                        <div className="font-bold text-slate-800">{row.recruitment.activePostings} Open Openings</div>
+                                        <div className="text-[10px] text-indigo-500 font-semibold">{row.recruitment.pipelineCandidates} Applied Candidates</div>
+                                    </td>
+
+                                    {/* Training Metrics */}
+                                    <td className="p-3.5">
+                                        <div className="font-semibold text-emerald-600">{row.training.completionRate}% Done</div>
+                                        <div className="text-[9px] text-gray-400 max-w-[130px] truncate" title={row.training.popularModule}>
+                                            {row.training.popularModule}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    </div>
+)}
+
+            
 
             {/* 👨‍💼 TEAM MEMBER MODAL */}
 {isTeamModalOpen && (
